@@ -1,0 +1,27 @@
+<body style="background-color:LightGoldenrodYellow;">
+<h1>Our Communal Cookbook</h1>
+
+<ul>
+{% for r in all_recipes %}
+<h2> <li>{{ r[0] }} </li> </h2>
+<a href= {{r[1]}} >View full recipe</a>
+<br>
+<br>
+<br>
+<img src={{r[2]}}>
+{% endfor %}
+</ul>
+
+{% if not all_recipes %}
+There are no saved favorite recipes in your cookbook.
+{% endif %}
+
+<div>
+{% for message in get_flashed_messages() %} 
+<strong>*** {{ message }} ***</strong>
+{% endfor %}
+</div>
+
+<h2> <a href="{{ url_for('index')}}">Return to add a new recipe</a> </h3>
+
+</body>

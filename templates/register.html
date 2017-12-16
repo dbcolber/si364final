@@ -1,0 +1,19 @@
+<body style="background-color:LightGoldenrodYellow;">
+
+
+<h1>Register for a New Account Here:</h1>
+
+<form method="POST">
+	{{ form.hidden_tag() }}
+	{{ form.email.label }} {{ form.email() }}
+	<br>
+	{{ form.username.label }} {{ form.username() }}
+	<br>
+    {{ form.password.label }} {{ form.password() }}
+    <br>
+    {{ form.password2.label }} {{ form.password2() }}
+    <br>
+	{{ form.submit.label }}{{ form.submit() }}
+</form>
+
+</body>

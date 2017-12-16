@@ -1,0 +1,29 @@
+<body style="background-color:LightGoldenrodYellow;">
+
+{% if current_user.is_authenticated %}
+    <a href="{{ url_for('logout') }}">Sign Out {{current_user.username}}</a>
+    <br>
+    <h2> Welcome to your virtual cookbook! </h2>
+
+<div class="page-header">
+    <h1><p><a href="{{ url_for('see_all') }}">See all my recipes</a></p></h1>
+</div>
+
+<form method="POST">
+	{{ form.hidden_tag() }}
+	{{ form.searchword.label }} {{ form.searchword() }}
+	{{ form.submit() }}
+</form>
+
+{% else %}
+    <h2> Welcome to your virtual cookbook! </h2>
+    <a href="{{ url_for('login') }}">Sign In</a>
+{% endif %}
+
+<div>
+{% for message in get_flashed_messages() %}
+{{ message }}
+{% endfor %}
+</div>
+
+</body>

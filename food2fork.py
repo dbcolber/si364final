@@ -3,6 +3,10 @@ __author__ = "Danielle Colbert"
 import requests
 import json
 
+import unittest
+# from app import create_app, db
+# from app.models import User, Role
+
 import os
 from flask import Flask, render_template, session, redirect, request, url_for, flash
 
@@ -10,6 +14,7 @@ from flask_script import Manager, Shell
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, FileField, PasswordField, BooleanField, SelectMultipleField, ValidationError
 from wtforms.validators import Required, Length, Email, Regexp, EqualTo
+from sqlalchemy.ext.declarative import declarative_base
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, MigrateCommand
@@ -20,6 +25,8 @@ from werkzeug import secure_filename
 
 from flask_login import LoginManager, login_required, logout_user, login_user, UserMixin, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+
+Base = declarative_base()
 
 # Configuring basedir of app
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -65,23 +72,22 @@ def send_email(to, subject, template, **kwargs):
     thr = Thread(target=send_asyncronous_email, args=[app, msg])
     thr.start()
 
-# SETTING UP MODELS
+# SETTING UP MODELS ----------------------------------------------------------
 
 # Setting up association tables
 
-user_recipes = db.Table('user_recipes',db.Column('user_id', db.String, db.ForeignKey('users.id')), db.Column('recipes_id', db.String, db.ForeignKey('recipes.id')))
+# user_recipes = db.Table('user_recipes',db.Column('user_id', db.Integer, db.ForeignKey('users.id')), db.Column('recipes_id', db.Integer, db.ForeignKey('recipes.id')))
 
-# User Model
+search_recipes = db.Table('search_recipes', db.Column('recipes_id', db.Integer, db.ForeignKey('recipes.id')), db.Column('searchword_id',db.Integer, db.ForeignKey('searchwords.id'), primary_key=True))
+
+
+# User Model -----------------------------------------------------------------
 
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True, index=True)
     email = db.Column(db.String(64), unique=True, index=True)
-
-    recipes = db.relationship('Recipes', backref='user', lazy='dynamic')
-    searchwords = db.relationship('Searchword', backref='user', lazy='dynamic')
-
     password_hash = db.Column(db.String(128))
 
     @property
@@ -99,7 +105,7 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Other models
+# Other models -----------------------------------------------------------------
 
 class Searchword(db.Model):
     __tablename__ = "searchwords"
@@ -107,6 +113,8 @@ class Searchword(db.Model):
     word = db.Column(db.String(300))
 #    recipes = db.Column(db.Integer, db.ForeignKey("recipes.id"))
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    recipes = db.relationship("Recipes", secondary = search_recipes, backref=db.backref('searchwords', lazy='dynamic'), lazy='dynamic')
+    # print('from Searchword class: ', recipes)
 
 class Recipes(db.Model):
     __tablename__ = "recipes"
@@ -119,7 +127,7 @@ class Recipes(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
 
 
-# Setting up Forms
+# Setting up Forms -------------------------------------------------------------
 
 class UserForm(FlaskForm):
     email=StringField('Enter Email: ', validators=[Required(), Email(), Length(1,64)])
@@ -147,39 +155,41 @@ class RecipeForm(FlaskForm):
     searchword = StringField("Search for a Recipe: ", validators=[Required()])
     submit = SubmitField('Search')
 
-# Helper functions
+# Helper functions -----------------------------------------------------------------
+
 
 def get_or_create_searchword(db_session, searchword, user_id):
-    searchword = db_session.query(Searchword).filter_by(word=searchword).first()
-    if searchword:
+    print(searchword)
+    searchword1 = db_session.query(Searchword).filter_by(word=searchword).first()
+    if searchword1:
         print("Found recipe...")
-        return searchword
+        return searchword1
     else:
-        print("Finding recipe...")
+        print("Finding recipe for: ", searchword)
         searchword = Searchword(word=searchword, user_id=user_id)
         db_session.add(searchword)
         db_session.commit()
         return searchword
 
 
-def get_or_create_recipes(db_session, title, searchword, publisher, url, image_url, user_id):
+def get_or_create_recipes(db_session, title, publisher, url, image_url, user_id, searchword):
     recipe = db_session.query(Recipes).filter_by(name="title").first()
     if recipe:
         return recipe
     else:
-
         recipe_searchword = get_or_create_searchword(db_session, searchword, user_id)
-        search = recipe_searchword.id
+        # search = recipe_searchword.id
         # recipe.searchword_id = search
+        print('recipe searchword: ', recipe_searchword)
 
-        recipe = Recipes(name=title, searchword_id=search, publisher=publisher, url=url, image_url=image_url, user_id=user_id)
-
+        recipe = Recipes(name=title, publisher=publisher, url=url, image_url=image_url, user_id=user_id)
+        print("Recipe: ", recipe)
         db_session.add(recipe)
         db_session.commit()
         return recipe
 
 
-## ROUTES
+## ROUTES -------------------------------------------------------------------
 
 @app.errorhandler(404)
 def pagenotfound(e):
@@ -223,8 +233,6 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html',form=form)
 
-# Main Routes
-
 #VIEW FUNCTION 4
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -235,21 +243,14 @@ def index():
         r = requests.get(base, params={'key':'ea94673565a10487854263cbdb7fc32c', 'q':form.searchword.data})
         r_dic = r.json()
         recipe1 = r_dic['recipes'][0]
+        print(recipe1)
+        print(r_dic)
         #user = User.query.filter_by(user_id=current_user.id).all()
-        get_or_create_recipes(db.session, recipe1["title"], form.searchword.data, recipe1["publisher"], recipe1["source_url"], recipe1["image_url"], current_user.id)
+        get_or_create_recipes(db.session, recipe1["title"], recipe1["publisher"], recipe1["source_url"], recipe1["image_url"], current_user.id, form.searchword.data)
         return redirect(url_for('see_all'))
     return render_template('index.html', form=form)
 
-# @app.route('/cookbook')
-# def see_all(methods=["GET","POST"]):
-#     rec = Recipes.query.all()
-#     all_recipes = []
-#     for r in rec:
-#         this_user_id = r.user_id
-#         user = User.query.filter_by(id=this_user_id).first()
-#         all_recipes.append((r.name, r.url, r.image_url, user.username))
-#     return render_template('all_recipes.html', all_recipes=all_recipes)
-
+#VIEW FUNCTION 5
 @app.route('/cookbook')
 def see_all(methods=["GET","POST"]):
     rec = Recipes.query.all()
@@ -265,8 +266,20 @@ if __name__ == '__main__':
     manager.run()
 
 
+# class FlaskClientTestCase(unittest.TestCase):
+#     # testing the addition of a new recipe to the database
+#     def test_recipes(self):
+#         # adding a new recipe
+#         new_recipe = get_or_create_recipes(db.session, 'Paleo Pancakes', 'Cooking by Danielle', 'www.test123.com', 'www.test123.com/images', 4)
+#         db.session.add(new_recipe)
+#         db.session.commit()
 
+#         # testing to see if user is in db
+#         rec = Recipes.query.filter_by(name='Paleo Pancakes').first()
+#         self.assertEqual(rec.name, 'Paleo Pancakes')
 
+# if __name__ == '__main__':
+#     unittest.main()
 
 
 
